@@ -31,3 +31,16 @@ body {
 button {
   font-family: inherit;
 }
+
+/* Leaflet map container fix */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  background: #0a0e1a;
+}
+
+/* Custom marker fix */
+.custom-marker {
+  background: none !important;
+  border: none !important;
+}

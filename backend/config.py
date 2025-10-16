@@ -9,8 +9,8 @@ from typing import List
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
     
-    # API Keys
-    mapbox_api_key: str = ""
+    # API Keys (НЕ ТРЕБУЮТСЯ! Используем Nominatim для геокодинга)
+    mapbox_api_key: str = ""  # Оставлено для совместимости, но не используется
     
     # Application
     environment: str = "development"
