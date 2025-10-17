@@ -74,13 +74,11 @@ async def health_check():
 
 
 # Import and include routers
-from api import location, weather
+from api import location, weather, route
 
 app.include_router(location.router, prefix="/api", tags=["Location"])
 app.include_router(weather.router, prefix="/api", tags=["Weather"])
-# Future routers:
-# from api import route
-# app.include_router(route.router, prefix="/api", tags=["Route"])
+app.include_router(route.router, prefix="/api", tags=["Route"])
 
 
 if __name__ == "__main__":

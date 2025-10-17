@@ -168,36 +168,36 @@
 ## ЭТАП 5: Route Calculation - простой алгоритм
 
 ### 5.1 Backend: Great Circle маршрут
-- [ ] Установить `geopy`
-- [ ] Создать `services/route/calculator.py`
-- [ ] Реализовать класс `SimpleRouteCalculator`:
+- [x] Установить `geopy`
+- [x] Создать `services/route/calculator.py`
+- [x] Реализовать класс `SimpleRouteCalculator`:
   - Метод `great_circle_route()` - кратчайший путь
   - Генерация 15-20 waypoints между A и B
-- [ ] Тестировать расчет базового маршрута
+- [x] Тестировать расчет базового маршрута
 
 ### 5.2 Backend: Избегание экстремальной погоды
-- [ ] В `SimpleRouteCalculator` добавить метод `avoid_extreme_weather()`:
+- [x] В `SimpleRouteCalculator` добавить метод `avoid_extreme_weather()`:
   - Проверка каждого waypoint на опасные условия
   - Пороги: ветер > 30 узлов, волны > 5 метров
   - Смещение waypoint перпендикулярно маршруту (50-100 nm)
-- [ ] Реализовать функцию `calculate_weather_penalty()`
-- [ ] Тестировать корректировку маршрута
+- [x] Реализовать функцию `calculate_weather_penalty()`
+- [x] Тестировать корректировку маршрута
 
 ### 5.3 Backend: Расчет ETA и метрик
-- [ ] Добавить метод `calculate_route_metrics()`:
+- [x] Добавить метод `calculate_route_metrics()`:
   - ETA для каждого waypoint (скорость судна ~15 узлов)
   - Общая дистанция (nautical miles)
   - Общее время в пути (часы)
-- [ ] Создать модель `RouteResponse` с waypoints
-- [ ] Создать эндпоинт `POST /api/route/calculate`
+- [x] Создать модель `RouteResponse` с waypoints
+- [x] Создать эндпоинт `POST /api/route/calculate`
 
 ### 5.4 Backend: Интеграция погоды в маршрут
-- [ ] Для каждого waypoint загрузить прогноз погоды на ETA
-- [ ] Добавить weather данные в каждый waypoint
-- [ ] Генерировать warnings (предупреждения):
+- [x] Для каждого waypoint загрузить прогноз погоды на ETA
+- [x] Добавить weather данные в каждый waypoint
+- [x] Генерировать warnings (предупреждения):
   - "High waves expected at WP5"
   - "Strong wind at WP12"
-- [ ] Тестировать полный flow через API
+- [x] Тестировать полный flow через API
 
 ---
 
