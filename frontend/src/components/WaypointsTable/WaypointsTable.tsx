@@ -98,23 +98,23 @@ export default function WaypointsTable({
   };
 
   return (
-    <div className={`bg-app-panel rounded-lg border border-app-border ${className}`}>
+    <div className={`bg-app-panel ${className}`}>
       {/* Header */}
-      <div className="px-4 py-3 border-b border-app-border">
-        <h3 className="text-lg font-semibold text-app-text">Waypoints</h3>
-        <div className="text-xs text-app-text-secondary mt-1">
+      <div className="px-3 py-1.5 border-b border-app-border">
+        <h3 className="text-sm font-semibold text-app-text">Waypoints</h3>
+        <div className="text-xs text-app-text-secondary">
           {waypoints.length} waypoint{waypoints.length !== 1 ? 's' : ''} along the route
         </div>
       </div>
 
       {/* Table container with scroll */}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-xs">
           <thead className="bg-app-bg text-app-text-secondary text-xs">
             <tr>
-              <th className="px-4 py-3 text-left w-12">#</th>
+              <th className="px-2 py-1.5 text-left w-8">#</th>
               <th
-                className="px-4 py-3 text-left cursor-pointer hover:text-app-text transition-colors"
+                className="px-2 py-1.5 text-left cursor-pointer hover:text-app-text transition-colors"
                 onClick={() => handleSort('id')}
               >
                 <div className="flex items-center gap-1">
@@ -125,7 +125,7 @@ export default function WaypointsTable({
                 </div>
               </th>
               <th
-                className="px-4 py-3 text-left cursor-pointer hover:text-app-text transition-colors"
+                className="px-2 py-1.5 text-left cursor-pointer hover:text-app-text transition-colors"
                 onClick={() => handleSort('eta')}
               >
                 <div className="flex items-center gap-1">
@@ -136,7 +136,7 @@ export default function WaypointsTable({
                 </div>
               </th>
               <th
-                className="px-4 py-3 text-right cursor-pointer hover:text-app-text transition-colors"
+                className="px-2 py-1.5 text-right cursor-pointer hover:text-app-text transition-colors"
                 onClick={() => handleSort('distance')}
               >
                 <div className="flex items-center justify-end gap-1">
@@ -147,7 +147,7 @@ export default function WaypointsTable({
                 </div>
               </th>
               <th
-                className="px-4 py-3 text-right cursor-pointer hover:text-app-text transition-colors"
+                className="px-2 py-1.5 text-right cursor-pointer hover:text-app-text transition-colors"
                 onClick={() => handleSort('wind')}
               >
                 <div className="flex items-center justify-end gap-1">
@@ -158,7 +158,7 @@ export default function WaypointsTable({
                 </div>
               </th>
               <th
-                className="px-4 py-3 text-right cursor-pointer hover:text-app-text transition-colors"
+                className="px-2 py-1.5 text-right cursor-pointer hover:text-app-text transition-colors"
                 onClick={() => handleSort('waves')}
               >
                 <div className="flex items-center justify-end gap-1">
@@ -168,8 +168,8 @@ export default function WaypointsTable({
                   )}
                 </div>
               </th>
-              <th className="px-4 py-3 text-center w-16">Status</th>
-              <th className="px-4 py-3 text-center w-12"></th>
+              <th className="px-2 py-1.5 text-center w-12">Status</th>
+              <th className="px-2 py-1.5 text-center w-8"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-app-border">
@@ -218,30 +218,30 @@ function WaypointRow({
         onClick={() => onRowClick(waypoint.id)}
       >
         {/* Number */}
-        <td className="px-4 py-3 text-app-text font-medium">
+        <td className="px-2 py-1.5 text-app-text font-medium text-xs">
           {waypoint.id + 1}
         </td>
 
         {/* Coordinates */}
-        <td className="px-4 py-3 font-mono text-xs text-app-text">
+        <td className="px-2 py-1.5 font-mono text-xs text-app-text">
           {formatCoords(waypoint.coordinates.lat, waypoint.coordinates.lng)}
         </td>
 
         {/* ETA */}
-        <td className="px-4 py-3 text-app-text text-xs">
+        <td className="px-2 py-1.5 text-app-text text-xs">
           {formatETA(waypoint.eta)}
         </td>
 
         {/* Distance */}
-        <td className="px-4 py-3 text-right text-app-text text-xs">
+        <td className="px-2 py-1.5 text-right text-app-text text-xs">
           <div>{formatDistance(waypoint.cumulative_distance)}</div>
-          <div className="text-app-text-secondary">
+          <div className="text-app-text-secondary text-[10px]">
             +{formatDistance(waypoint.distance_from_prev)}
           </div>
         </td>
 
         {/* Wind */}
-        <td className="px-4 py-3 text-right text-app-text text-xs">
+        <td className="px-2 py-1.5 text-right text-app-text text-xs">
           {waypoint.weather?.wind_speed !== undefined ? (
             <span
               className={
@@ -260,7 +260,7 @@ function WaypointRow({
         </td>
 
         {/* Waves */}
-        <td className="px-4 py-3 text-right text-app-text text-xs">
+        <td className="px-2 py-1.5 text-right text-app-text text-xs">
           {waypoint.weather?.wave_height !== undefined ? (
             <span
               className={
@@ -279,8 +279,8 @@ function WaypointRow({
         </td>
 
         {/* Status */}
-        <td className="px-4 py-3 text-center">
-          <div className="flex items-center justify-center gap-1">
+        <td className="px-2 py-1.5 text-center">
+          <div className="flex items-center justify-center gap-0.5 text-xs">
             {waypoint.is_adjusted && (
               <span className="text-orange-500" title="Route adjusted">
                 🔄
@@ -295,13 +295,13 @@ function WaypointRow({
         </td>
 
         {/* Expand button */}
-        <td className="px-4 py-3 text-center">
+        <td className="px-2 py-1.5 text-center">
           <button
             onClick={(e) => {
               e.stopPropagation();
               onToggleExpand(waypoint.id);
             }}
-            className="text-app-text-secondary hover:text-app-text transition-colors"
+            className="text-app-text-secondary hover:text-app-text transition-colors text-xs"
           >
             {isExpanded ? '▲' : '▼'}
           </button>

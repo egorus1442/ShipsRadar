@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     copernicus_username: str = ""
     copernicus_password: str = ""
     
+    # Weather data source
+    use_mock_weather: bool = False  # Set to True to use mock data instead of real API
+    
     class Config:
         env_file = ".env"
         case_sensitive = False

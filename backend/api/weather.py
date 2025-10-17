@@ -276,19 +276,41 @@ async def get_weather_layer(request: WeatherLayerRequest):
 @router.get("/weather/cache/stats")
 async def get_cache_stats():
     """
-    Get weather cache statistics
+    Get detailed weather cache statistics
     
-    Returns information about the current cache state
+    Returns comprehensive information about the cache state including:
+    - Hit/miss rates
+    - Number of cached days and points
+    - Memory usage estimate
+    - API requests saved
+    
+    **Example response:**
+    ```json
+    {
+        "enabled": true,
+        "cache_type": "smart",
+        "hits": 150,
+        "misses": 10,
+        "hit_rate": 93.75,
+        "days_cached": 3,
+        "points_cached": 300,
+        "api_requests_saved": 150,
+        "memory_mb": 0.15,
+        "cache_range": {
+            "start": "2025-10-17",
+            "end": "2025-10-24"
+        }
+    }
+    ```
     """
     try:
         aggregator = get_weather_aggregator()
-        cache_size = aggregator.get_cache_size()
+        stats = aggregator.get_cache_stats()
         
-        return {
-            "enabled": aggregator.enable_cache,
-            "size": cache_size,
-            "ttl_seconds": aggregator.cache._ttl.total_seconds() if aggregator.cache else None
-        }
+        stats["enabled"] = aggregator.enable_cache
+        stats["cache_type"] = "smart" if aggregator.use_smart_cache else "legacy"
+        
+        return stats
     except Exception as e:
         logger.error(f"Error getting cache stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))

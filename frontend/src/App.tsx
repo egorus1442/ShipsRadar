@@ -1,19 +1,22 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { MapView } from './components/Map';
-import { RouteInputPanel } from './components/RouteInputPanel';
 import { RouteLayer } from './components/RouteLayer';
-import { RouteMetrics } from './components/RouteMetrics';
-import { WeatherWarnings } from './components/WeatherWarnings';
 import { WaypointsTable } from './components/WaypointsTable';
 import { WeatherLayersManager, type WeatherLayersConfig } from './components/WeatherLayers';
+import { type WeatherControlsConfig } from './components/WeatherControls';
+import { TimeSlider } from './components/TimeSlider';
+import { CompactSidebar } from './components/CompactSidebar';
+import { CompactTopBar } from './components/CompactTopBar';
+import { RoutePlanningModal } from './components/RoutePlanningModal';
+import { WeatherLayersModal } from './components/WeatherLayersModal';
 import { validateConfig } from './config';
 import { calculateRoute, RouteCalculationError } from './services/routeApi';
 import type {
   MapMarker,
   MapClickEvent,
   LocationInputState,
-  Coordinates,
   RouteResponse,
+  WeatherPoint,
 } from './types';
 
 function App() {
@@ -21,9 +24,12 @@ function App() {
   const [mapClickMode, setMapClickMode] = useState<'start' | 'end' | null>(null);
   const [route, setRoute] = useState<RouteResponse | null>(null);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
-  const [routeError, setRouteError] = useState<string | null>(null);
   const [selectedWaypointId, setSelectedWaypointId] = useState<number | undefined>(undefined);
   const routeInputRef = useRef<any>(null);
+
+  // Modal states
+  const [isRoutePlanningOpen, setIsRoutePlanningOpen] = useState(false);
+  const [isWeatherLayersOpen, setIsWeatherLayersOpen] = useState(false);
 
   // Weather layers state
   const [weatherLayers, setWeatherLayers] = useState<any[]>([]);
@@ -35,10 +41,26 @@ function App() {
   const [isLoadingWeather, setIsLoadingWeather] = useState(false);
   const [weatherError, setWeatherError] = useState<string | null>(null);
   
-  // Map bounds for weather layers - use visible map area (memoized to prevent re-renders)
+  // Weather controls state
+  const [weatherControlsConfig, setWeatherControlsConfig] = useState<WeatherControlsConfig>({
+    wind: { enabled: false, opacity: 0.7 },
+    waves: { enabled: false, opacity: 0.7 },
+    currents: { enabled: false, opacity: 0.8 },
+    precipitation: { enabled: false, opacity: 0.7 },
+    temperature: { enabled: false, opacity: 0.7 },
+  });
+  const [showWeather, setShowWeather] = useState(false);
+  
+  // Time slider state
+  const [forecastTime, setForecastTime] = useState<Date>(new Date());
+  
+  // Current weather point (for top bar display)
+  const [currentWeatherPoint, setCurrentWeatherPoint] = useState<WeatherPoint | null>(null);
+  
+  // Map bounds for weather layers - use full world ocean coverage
   const mapBounds = useMemo(() => ({
-    north: 60,
-    south: -60,
+    north: 85,
+    south: -85,
     east: 180,
     west: -180,
   }), []);
@@ -49,64 +71,26 @@ function App() {
     console.warn('Configuration warnings:', configValidation.warnings);
   }
 
+  // Listen for route planning modal open event
+  useEffect(() => {
+    const handleOpenRoutePlanning = () => {
+      setIsRoutePlanningOpen(true);
+    };
+    window.addEventListener('openRoutePlanning', handleOpenRoutePlanning);
+    return () => window.removeEventListener('openRoutePlanning', handleOpenRoutePlanning);
+  }, []);
+
   // Handle map click
   const handleMapClick = (event: MapClickEvent) => {
     const { coordinates } = event;
     console.log('Map clicked at:', coordinates);
 
-    // If in map click mode, set the location
-    if (mapClickMode && routeInputRef.current) {
-      routeInputRef.current.setLocationFromCoordinates(mapClickMode, coordinates);
+    // If in map click mode, notify the modal through an event
+    if (mapClickMode) {
+      window.dispatchEvent(new CustomEvent('mapCoordinatesSelected', {
+        detail: { type: mapClickMode, coordinates }
+      }));
     }
-  };
-
-  // Handle start location change
-  const handleStartLocationChange = (location: LocationInputState) => {
-    if (location.coordinates) {
-      // Update or add start marker
-      setMarkers((prev) => {
-        const filtered = prev.filter((m) => m.id !== 'start-point');
-        return [
-          ...filtered,
-          {
-            id: 'start-point',
-            coordinates: location.coordinates!,
-            label: location.selectedFeature?.text || 'Start',
-            type: 'start',
-          },
-        ];
-      });
-    } else {
-      // Remove start marker if coordinates cleared
-      setMarkers((prev) => prev.filter((m) => m.id !== 'start-point'));
-    }
-  };
-
-  // Handle end location change
-  const handleEndLocationChange = (location: LocationInputState) => {
-    if (location.coordinates) {
-      // Update or add end marker
-      setMarkers((prev) => {
-        const filtered = prev.filter((m) => m.id !== 'end-point');
-        return [
-          ...filtered,
-          {
-            id: 'end-point',
-            coordinates: location.coordinates!,
-            label: location.selectedFeature?.text || 'End',
-            type: 'end',
-          },
-        ];
-      });
-    } else {
-      // Remove end marker if coordinates cleared
-      setMarkers((prev) => prev.filter((m) => m.id !== 'end-point'));
-    }
-  };
-
-  // Handle map click mode change
-  const handleMapClickModeChange = (mode: 'start' | 'end' | null) => {
-    setMapClickMode(mode);
   };
 
   // Handle calculate route
@@ -116,12 +100,11 @@ function App() {
     departureTime: Date
   ) => {
     if (!start.coordinates || !end.coordinates) {
-      setRouteError('Please provide valid start and end coordinates');
+      console.error('Invalid coordinates');
       return;
     }
 
     setIsCalculatingRoute(true);
-    setRouteError(null);
     setRoute(null);
 
     try {
@@ -148,17 +131,17 @@ function App() {
       setRoute(routeResponse);
       setSelectedWaypointId(undefined);
 
-      // Remove start/end markers (route will show waypoints instead)
+      // Remove markers
       setMarkers([]);
     } catch (error) {
       console.error('Route calculation error:', error);
       
       if (error instanceof RouteCalculationError) {
-        setRouteError(error.message);
+        alert(`Route calculation failed: ${error.message}`);
       } else if (error instanceof Error) {
-        setRouteError(`Failed to calculate route: ${error.message}`);
+        alert(`Failed to calculate route: ${error.message}`);
       } else {
-        setRouteError('An unexpected error occurred while calculating the route');
+        alert('An unexpected error occurred while calculating the route');
       }
     } finally {
       setIsCalculatingRoute(false);
@@ -171,16 +154,9 @@ function App() {
     console.log('Selected waypoint:', waypointId);
   };
 
-  // Handle warning click (navigate to waypoint)
-  const handleWarningClick = (waypointId: number) => {
-    setSelectedWaypointId(waypointId);
-    // TODO: Could also zoom to waypoint on map
-  };
-
   // Handle weather layers update
   const handleWeatherLayersUpdate = useCallback((layers: any[]) => {
     setWeatherLayers((prev) => {
-      // Only update if layers actually changed
       if (prev.length === layers.length && 
           prev.every((l, i) => l.id === layers[i]?.id)) {
         return prev;
@@ -189,183 +165,67 @@ function App() {
     });
   }, []);
 
-  // Toggle weather layer
-  const toggleWeatherLayer = useCallback((layerType: 'wind' | 'waves' | 'currents') => {
-    setWeatherLayersConfig((prev) => {
-      const newConfig = {
-        ...prev,
-        [layerType]: {
-          ...prev[layerType],
-          enabled: !prev[layerType].enabled,
-        },
-      };
-      console.log(`Weather layer ${layerType} toggled:`, newConfig[layerType].enabled);
-      return newConfig;
+  // Handle weather controls config change
+  const handleWeatherControlsChange = useCallback((config: WeatherControlsConfig) => {
+    setWeatherControlsConfig(config);
+    
+    // Sync with weather layers config
+    setWeatherLayersConfig({
+      wind: { enabled: config.wind.enabled, opacity: config.wind.opacity },
+      waves: { enabled: config.waves.enabled, opacity: config.waves.opacity, showHeatmap: false },
+      currents: { enabled: config.currents.enabled, opacity: config.currents.opacity, showVectors: true },
     });
   }, []);
 
+  // Handle show weather toggle
+  const handleToggleWeather = useCallback(() => {
+    setShowWeather((prev) => !prev);
+  }, []);
+  
+  // Handle forecast time change
+  const handleForecastTimeChange = useCallback((time: Date) => {
+    setForecastTime(time);
+    console.log('Forecast time changed to:', time);
+  }, []);
+
+  // Handle create new route
+  const handleCreateNewRoute = () => {
+    setRoute(null);
+    setSelectedWaypointId(undefined);
+    setMarkers([]);
+    setIsRoutePlanningOpen(true);
+  };
+
   return (
-    <div className="min-h-screen bg-app-bg text-app-text flex flex-col">
-      {/* Header */}
-      <header className="bg-app-panel border-b border-app-border px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">🚢 ShipsRadar MVP</h1>
-            <p className="text-sm text-app-text-secondary">
-              Ship Route Optimization with Weather Data
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="px-3 py-1 bg-green-900/20 border border-green-700 rounded text-green-400 text-sm">
-              Stage 7 Complete ✓
-            </div>
-            {route && (
-              <div className="px-3 py-1 bg-blue-900/20 border border-blue-700 rounded text-blue-400 text-sm">
-                {route.waypoints.length} waypoints
-              </div>
-            )}
-            {/* Weather Layers Toggle */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => toggleWeatherLayer('wind')}
-                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                  weatherLayersConfig.wind.enabled
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-                title="Toggle Wind Layer"
-              >
-                💨 Wind
-              </button>
-              <button
-                onClick={() => toggleWeatherLayer('waves')}
-                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                  weatherLayersConfig.waves.enabled
-                    ? 'bg-cyan-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-                title="Toggle Waves Layer"
-              >
-                🌊 Waves
-              </button>
-              <button
-                onClick={() => toggleWeatherLayer('currents')}
-                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                  weatherLayersConfig.currents.enabled
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-                title="Toggle Currents Layer"
-              >
-                🌀 Currents
-              </button>
-              {isLoadingWeather && (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-app-accent"></div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="h-screen bg-app-bg text-app-text flex flex-col overflow-hidden">
+      {/* Compact Top Bar */}
+      <CompactTopBar
+        route={route}
+        weatherData={currentWeatherPoint}
+        forecastTime={forecastTime}
+      />
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col lg:flex-row gap-4 p-4">
-        {/* Left Panel - Route Input */}
-        <aside className="lg:w-96 flex-shrink-0 space-y-4">
-          <RouteInputPanel
-            ref={routeInputRef}
-            onCalculateRoute={handleCalculateRoute}
-            onStartLocationChange={handleStartLocationChange}
-            onEndLocationChange={handleEndLocationChange}
-            onMapClickMode={handleMapClickModeChange}
-          />
+      {/* Main Content - Fixed Height */}
+      <main className="flex-1 flex overflow-hidden">
+        {/* Compact Sidebar */}
+        <CompactSidebar
+          route={route}
+          isCalculating={isCalculatingRoute}
+          onCalculateRoute={handleCalculateRoute}
+          onCreateNewRoute={handleCreateNewRoute}
+          routeInputRef={routeInputRef}
+          onStartLocationChange={() => {}}
+          onEndLocationChange={() => {}}
+          onMapClickMode={setMapClickMode}
+          showWeather={showWeather}
+          onToggleWeather={handleToggleWeather}
+          onOpenWeatherLayers={() => setIsWeatherLayersOpen(true)}
+        />
 
-          {/* Loading state */}
-          {isCalculatingRoute && (
-            <div className="bg-app-panel rounded-lg border border-app-border p-4">
-              <div className="flex items-center gap-3">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-app-accent"></div>
-                <div className="text-sm text-app-text">Calculating optimal route...</div>
-              </div>
-            </div>
-          )}
-
-          {/* Error state */}
-          {routeError && (
-            <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <div className="text-red-500 text-xl">⚠️</div>
-                <div>
-                  <div className="text-sm font-medium text-red-400 mb-1">
-                    Route Calculation Error
-                  </div>
-                  <div className="text-xs text-red-300">{routeError}</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Route Metrics */}
-          {route && <RouteMetrics metrics={route.metrics} />}
-
-          {/* Weather Warnings */}
-          {route && (
-            <WeatherWarnings
-              warnings={route.warnings}
-              onWarningClick={handleWarningClick}
-            />
-          )}
-
-          {/* Weather loading/error states */}
-          {isLoadingWeather && (
-            <div className="bg-app-panel rounded-lg border border-app-border p-4">
-              <div className="flex items-center gap-3">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-app-accent"></div>
-                <div className="text-sm text-app-text">Loading weather layers...</div>
-              </div>
-            </div>
-          )}
-
-          {weatherError && (
-            <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <div className="text-yellow-500 text-xl">⚠️</div>
-                <div>
-                  <div className="text-sm font-medium text-yellow-400 mb-1">
-                    Weather Layer Warning
-                  </div>
-                  <div className="text-xs text-yellow-300">{weatherError}</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Map click mode indicator */}
-          {mapClickMode && (
-            <div className="bg-app-accent/20 border border-app-accent rounded-lg p-4 animate-pulse">
-              <div className="flex items-center gap-2 text-app-accent font-medium">
-                <svg
-                  className="w-5 h-5"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span>
-                  Click on map to set {mapClickMode === 'start' ? 'START' : 'END'} point
-                </span>
-              </div>
-            </div>
-          )}
-        </aside>
-
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col gap-4">
-          {/* Map View */}
-          <div className="flex-1 bg-app-panel rounded-lg border border-app-border overflow-hidden min-h-[600px] relative">
+        {/* Map Container */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Map View - Takes remaining space */}
+          <div className="flex-1 relative">
             <MapView
               onMapClick={handleMapClick}
               markers={markers}
@@ -381,50 +241,83 @@ function App() {
                 />
               )}
 
-              {/* Weather Layers Manager - only render if any layer is enabled */}
+              {/* Weather Layers Manager */}
               {(weatherLayersConfig.wind.enabled || 
                 weatherLayersConfig.waves.enabled || 
                 weatherLayersConfig.currents.enabled) && (
                 <WeatherLayersManager
                   bounds={mapBounds}
                   config={weatherLayersConfig}
+                  timestamp={forecastTime}
                   onLayersUpdate={handleWeatherLayersUpdate}
                   onLoadingChange={setIsLoadingWeather}
                   onError={setWeatherError}
                 />
               )}
             </MapView>
-            
-            {/* Map overlay cursor hint */}
+
+            {/* Map click mode indicator */}
             {mapClickMode && (
-              <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-app-panel/95 border border-app-accent rounded-lg px-4 py-2 shadow-lg z-10">
-                <div className="flex items-center gap-2 text-sm text-app-accent font-medium">
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-app-accent text-white px-4 py-2 rounded-lg shadow-lg z-10 animate-pulse">
+                <div className="flex items-center gap-2 text-sm font-medium">
                   <svg className="w-4 h-4 animate-bounce" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
                   </svg>
-                  <span>Click anywhere on the map</span>
+                  <span>Click on map to set {mapClickMode === 'start' ? 'START' : 'END'} point</span>
+                </div>
+              </div>
+            )}
+
+            {/* Loading indicator */}
+            {isLoadingWeather && (
+              <div className="absolute top-4 right-4 bg-app-panel border border-app-border rounded-lg px-3 py-2 shadow-lg z-10">
+                <div className="flex items-center gap-2 text-xs text-app-accent">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-app-accent"></div>
+                  <span>Loading weather...</span>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Waypoints Table (Bottom) */}
-          {route && route.waypoints.length > 0 && (
-            <WaypointsTable
-              waypoints={route.waypoints}
-              selectedWaypointId={selectedWaypointId}
-              onWaypointClick={handleWaypointClick}
+          {/* Time Slider - Fixed at bottom */}
+          <div className="border-t border-app-border bg-app-panel">
+            <TimeSlider
+              currentTime={forecastTime}
+              onChange={handleForecastTimeChange}
             />
+          </div>
+
+          {/* Waypoints Table - Collapsible bottom panel */}
+          {route && route.waypoints.length > 0 && (
+            <div className="border-t border-app-border bg-app-panel max-h-32 overflow-auto">
+              <WaypointsTable
+                waypoints={route.waypoints}
+                selectedWaypointId={selectedWaypointId}
+                onWaypointClick={handleWaypointClick}
+              />
+            </div>
           )}
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-app-panel border-t border-app-border px-6 py-3 text-center text-sm text-app-text-secondary">
-        <p>
-          ShipsRadar MVP - Stage 7 Complete ✓ | Weather Visualization with Wind, Waves & Currents Layers
-        </p>
-      </footer>
+      {/* Route Planning Modal */}
+      <RoutePlanningModal
+        isOpen={isRoutePlanningOpen}
+        onClose={() => {
+          setIsRoutePlanningOpen(false);
+          setMapClickMode(null);
+        }}
+        onCalculate={handleCalculateRoute}
+        onMapClickMode={setMapClickMode}
+      />
+
+      {/* Weather Layers Modal */}
+      <WeatherLayersModal
+        isOpen={isWeatherLayersOpen}
+        onClose={() => setIsWeatherLayersOpen(false)}
+        config={weatherControlsConfig}
+        onChange={handleWeatherControlsChange}
+      />
     </div>
   );
 }

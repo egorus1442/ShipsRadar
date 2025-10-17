@@ -2,6 +2,7 @@
 Open-Meteo Marine Weather API Integration
 Free marine weather API for wind, waves, and weather data
 """
+import asyncio
 import httpx
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -294,6 +295,324 @@ class OpenMeteoService:
         )
         
         return closest_point
+    
+    async def fetch_marine_weather_batch(
+        self,
+        coordinates: List[tuple[float, float]],
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        max_batch_size: int = 100
+    ) -> dict[tuple[float, float], List[WeatherPoint]]:
+        """
+        Fetch marine weather data for multiple points in batch
+        
+        Open-Meteo API supports arrays of coordinates in a single request.
+        This is MUCH faster than making individual requests.
+        
+        Args:
+            coordinates: List of (lat, lng) tuples
+            start_date: Start date for forecast (default: now)
+            end_date: End date for forecast (default: now + 7 days)
+            max_batch_size: Maximum points per batch (default: 100)
+            
+        Returns:
+            Dictionary mapping (lat, lng) to List[WeatherPoint]
+        """
+        # Set default dates
+        if start_date is None:
+            start_date = datetime.utcnow()
+        if end_date is None:
+            end_date = start_date + timedelta(days=7)
+        
+        logger.info(f"Fetching weather for {len(coordinates)} points in batches")
+        
+        # Split into batches
+        batches = [
+            coordinates[i:i + max_batch_size] 
+            for i in range(0, len(coordinates), max_batch_size)
+        ]
+        
+        logger.info(f"Split into {len(batches)} batches")
+        
+        # Process batches in parallel
+        tasks = [
+            self._fetch_batch(batch, start_date, end_date)
+            for batch in batches
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Combine results
+        combined_results = {}
+        successful_batches = 0
+        failed_batches = 0
+        
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(f"Batch {i} failed: {result}")
+                failed_batches += 1
+                # Create empty results for failed batch
+                for coord in batches[i]:
+                    combined_results[coord] = []
+            else:
+                successful_batches += 1
+                combined_results.update(result)
+        
+        logger.info(
+            f"Batch processing complete: {successful_batches} successful, "
+            f"{failed_batches} failed, {len(combined_results)} total points"
+        )
+        
+        return combined_results
+    
+    async def _fetch_batch(
+        self,
+        coordinates: List[tuple[float, float]],
+        start_date: datetime,
+        end_date: datetime,
+        retry_count: int = 2
+    ) -> dict[tuple[float, float], List[WeatherPoint]]:
+        """
+        Fetch weather data for a single batch of coordinates
+        
+        Args:
+            coordinates: List of (lat, lng) tuples
+            start_date: Start date
+            end_date: End date
+            retry_count: Number of retries on failure
+            
+        Returns:
+            Dictionary mapping coordinates to weather points
+        """
+        lats = [coord[0] for coord in coordinates]
+        lngs = [coord[1] for coord in coordinates]
+        
+        for attempt in range(retry_count + 1):
+            try:
+                # Fetch marine data (waves)
+                marine_data = await self._fetch_marine_data_batch(
+                    lats, lngs, start_date, end_date
+                )
+                
+                # Fetch weather data (wind, temperature, pressure)
+                weather_data = await self._fetch_weather_data_batch(
+                    lats, lngs, start_date, end_date
+                )
+                
+                # Parse combined data
+                results = self._parse_batch_data(
+                    coordinates, marine_data, weather_data, start_date, end_date
+                )
+                
+                logger.info(f"Successfully fetched batch of {len(coordinates)} points")
+                return results
+                
+            except Exception as e:
+                if attempt < retry_count:
+                    logger.warning(f"Batch request failed (attempt {attempt + 1}), retrying: {e}")
+                    await asyncio.sleep(1 * (attempt + 1))  # Exponential backoff
+                else:
+                    logger.error(f"Batch request failed after {retry_count + 1} attempts: {e}")
+                    # Return empty results for all coordinates
+                    return {coord: [] for coord in coordinates}
+        
+        return {}
+    
+    async def _fetch_marine_data_batch(
+        self,
+        lats: List[float],
+        lngs: List[float],
+        start_date: datetime,
+        end_date: datetime
+    ) -> dict:
+        """Fetch marine data for multiple points in one request"""
+        params = {
+            "latitude": lats,
+            "longitude": lngs,
+            "hourly": ",".join(self.MARINE_PARAMS),
+            "start_date": start_date.strftime("%Y-%m-%d"),
+            "end_date": end_date.strftime("%Y-%m-%d"),
+            "timezone": "UTC"
+        }
+        
+        logger.debug(f"Fetching marine batch data for {len(lats)} points")
+        response = await self.client.get(self.BASE_URL, params=params)
+        response.raise_for_status()
+        
+        return response.json()
+    
+    async def _fetch_weather_data_batch(
+        self,
+        lats: List[float],
+        lngs: List[float],
+        start_date: datetime,
+        end_date: datetime
+    ) -> dict:
+        """Fetch weather data for multiple points in one request"""
+        weather_url = "https://api.open-meteo.com/v1/forecast"
+        
+        params = {
+            "latitude": lats,
+            "longitude": lngs,
+            "hourly": ",".join(self.WEATHER_PARAMS),
+            "start_date": start_date.strftime("%Y-%m-%d"),
+            "end_date": end_date.strftime("%Y-%m-%d"),
+            "timezone": "UTC"
+        }
+        
+        logger.debug(f"Fetching weather batch data for {len(lats)} points")
+        response = await self.client.get(weather_url, params=params)
+        response.raise_for_status()
+        
+        return response.json()
+    
+    def _parse_batch_data(
+        self,
+        coordinates: List[tuple[float, float]],
+        marine_data: dict,
+        weather_data: dict,
+        start_date: datetime,
+        end_date: datetime
+    ) -> dict[tuple[float, float], List[WeatherPoint]]:
+        """
+        Parse batch response data
+        
+        Batch API returns data in format:
+        {
+            "latitude": [lat1, lat2, ...],
+            "longitude": [lng1, lng2, ...],
+            "hourly": {
+                "time": ["2025-10-17T00:00", ...],
+                "wind_speed_10m": [[val_point1_time1, val_point1_time2, ...], [val_point2_time1, ...], ...],
+                ...
+            }
+        }
+        """
+        results = {}
+        
+        # Get hourly data
+        marine_hourly = marine_data.get("hourly", {})
+        weather_hourly = weather_data.get("hourly", {})
+        
+        # Get time array (same for all points)
+        times = marine_hourly.get("time", weather_hourly.get("time", []))
+        
+        if not times:
+            logger.warning("No time data in batch response")
+            return {coord: [] for coord in coordinates}
+        
+        # Process each coordinate
+        for point_idx, coord in enumerate(coordinates):
+            lat, lng = coord
+            weather_points = []
+            
+            for time_idx, time_str in enumerate(times):
+                try:
+                    timestamp = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+                    
+                    # Skip if outside requested range
+                    if timestamp < start_date or timestamp > end_date:
+                        continue
+                    
+                    # Extract wind data for this point and time
+                    wind_speed_kmh = self._get_batch_value(
+                        weather_hourly, "wind_speed_10m", point_idx, time_idx
+                    )
+                    wind_direction = self._get_batch_value(
+                        weather_hourly, "wind_direction_10m", point_idx, time_idx
+                    )
+                    wind_gust_kmh = self._get_batch_value(
+                        weather_hourly, "wind_gusts_10m", point_idx, time_idx
+                    )
+                    
+                    if wind_speed_kmh is None or wind_direction is None:
+                        continue
+                    
+                    wind_data = WindData(
+                        speed=self._convert_kmh_to_knots(wind_speed_kmh),
+                        direction=wind_direction,
+                        gust=self._convert_kmh_to_knots(wind_gust_kmh) if wind_gust_kmh else None
+                    )
+                    
+                    # Extract wave data
+                    wave_height = self._get_batch_value(
+                        marine_hourly, "wave_height", point_idx, time_idx
+                    )
+                    wave_direction = self._get_batch_value(
+                        marine_hourly, "wave_direction", point_idx, time_idx
+                    )
+                    wave_period = self._get_batch_value(
+                        marine_hourly, "wave_period", point_idx, time_idx
+                    )
+                    
+                    if wave_height is None:
+                        wave_height = 0.0
+                    
+                    wave_data = WaveData(
+                        height=wave_height,
+                        direction=wave_direction,
+                        period=wave_period
+                    )
+                    
+                    # Extract additional parameters
+                    temperature = self._get_batch_value(
+                        weather_hourly, "temperature_2m", point_idx, time_idx
+                    )
+                    pressure = self._get_batch_value(
+                        weather_hourly, "surface_pressure", point_idx, time_idx
+                    )
+                    precipitation = self._get_batch_value(
+                        weather_hourly, "precipitation", point_idx, time_idx
+                    )
+                    
+                    # Create weather point
+                    weather_point = WeatherPoint(
+                        coordinates=Coordinates(lat=lat, lng=lng),
+                        timestamp=timestamp,
+                        wind=wind_data,
+                        waves=wave_data,
+                        currents=None,
+                        temperature=temperature,
+                        pressure=pressure,
+                        precipitation=precipitation,
+                        visibility=None
+                    )
+                    
+                    weather_points.append(weather_point)
+                    
+                except Exception as e:
+                    logger.debug(f"Error parsing batch data at point {point_idx}, time {time_idx}: {e}")
+                    continue
+            
+            results[coord] = weather_points
+        
+        return results
+    
+    def _get_batch_value(
+        self, 
+        data: dict, 
+        key: str, 
+        point_idx: int, 
+        time_idx: int
+    ) -> Optional[float]:
+        """
+        Safely get a value from batch data array
+        
+        Batch data format: data[key] = [[time1_val, time2_val, ...], [point2_time1, ...], ...]
+        """
+        try:
+            values = data.get(key, [])
+            if not values or point_idx >= len(values):
+                return None
+            
+            point_values = values[point_idx]
+            if not isinstance(point_values, list) or time_idx >= len(point_values):
+                return None
+            
+            value = point_values[time_idx]
+            return float(value) if value is not None else None
+        except (ValueError, TypeError, IndexError):
+            return None
 
 
 # Singleton instance

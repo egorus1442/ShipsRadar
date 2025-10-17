@@ -26,6 +26,7 @@ interface LocationInputProps {
   onSelectLocation?: (feature: LocationFeature) => void;
   disabled?: boolean;
   className?: string;
+  icon?: React.ReactNode;
 }
 
 export function LocationInput({
@@ -36,6 +37,7 @@ export function LocationInput({
   onSelectLocation,
   disabled = false,
   className = '',
+  icon,
 }: LocationInputProps) {
   const [suggestions, setSuggestions] = useState<LocationFeature[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -204,7 +206,8 @@ export function LocationInput({
   return (
     <div className={`relative ${className}`}>
       {/* Label */}
-      <label className="block text-sm font-medium text-app-text mb-2">
+      <label className="block text-sm font-bold text-white mb-2 flex items-center gap-2">
+        {icon}
         {label}
       </label>
 
@@ -226,7 +229,7 @@ export function LocationInput({
           className={`
             w-full px-4 py-2 pr-10
             bg-app-bg border rounded
-            text-app-text placeholder-app-text-secondary
+            text-app-text placeholder:text-gray-500
             focus:outline-none focus:ring-2 focus:ring-app-accent
             disabled:opacity-50 disabled:cursor-not-allowed
             ${
@@ -288,7 +291,7 @@ export function LocationInput({
       {showSuggestions && suggestions.length > 0 && (
         <div
           ref={suggestionsRef}
-          className="absolute z-50 w-full mt-1 bg-app-panel border border-app-border rounded-lg shadow-lg max-h-64 overflow-y-auto"
+          className="absolute z-50 w-full mt-1 bg-[#1a1f2e] border-2 border-[#2d3548] rounded-lg shadow-2xl max-h-64 overflow-y-auto"
         >
           {suggestions.map((feature, index) => (
             <button
@@ -296,26 +299,26 @@ export function LocationInput({
               onClick={() => handleSelectSuggestion(feature)}
               className={`
                 w-full px-4 py-3 text-left transition-colors
-                hover:bg-app-bg
+                hover:bg-[#0f1419]
                 ${
                   index === activeSuggestionIndex
-                    ? 'bg-app-bg'
+                    ? 'bg-[#0f1419]'
                     : ''
                 }
-                ${index > 0 ? 'border-t border-app-border' : ''}
+                ${index > 0 ? 'border-t border-[#2d3548]' : ''}
               `}
               type="button"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-app-text truncate">
+                  <div className="text-sm font-bold text-white truncate">
                     {feature.text}
                   </div>
-                  <div className="text-xs text-app-text-secondary truncate">
+                  <div className="text-xs text-gray-400 truncate">
                     {feature.place_name}
                   </div>
                 </div>
-                <div className="text-xs text-app-text-secondary whitespace-nowrap">
+                <div className="text-xs text-gray-400 whitespace-nowrap">
                   {formatCoordinates(feature.coordinates, 2)}
                 </div>
               </div>

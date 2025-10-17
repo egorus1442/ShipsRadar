@@ -105,7 +105,7 @@ export function WeatherLayersManager({
           'wind',
           bounds,
           timestamp,
-          'medium'
+          'low'  // Use low resolution for better performance with large areas
         );
         
         if (!cancelled) {
@@ -149,7 +149,7 @@ export function WeatherLayersManager({
           'waves',
           bounds,
           timestamp,
-          'medium'
+          'low'  // Use low resolution for better performance with large areas
         );
         
         if (!cancelled) {
