@@ -137,31 +137,31 @@
 ## ЭТАП 4: Weather Service - получение погодных данных
 
 ### 4.1 Backend: Open-Meteo интеграция
-- [ ] Установить `httpx` (async HTTP клиент)
-- [ ] Создать `services/weather/open_meteo.py`
-- [ ] Реализовать функцию `fetch_marine_weather()`:
+- [x] Установить `httpx` (async HTTP клиент)
+- [x] Создать `services/weather/open_meteo.py`
+- [x] Реализовать функцию `fetch_marine_weather()`:
   - Параметры: lat, lon, start_date, end_date
   - Возврат: ветер, волны, температура, осадки, давление
-- [ ] Создать Pydantic модель `WeatherData`
-- [ ] Тестировать получение данных для тестовой точки
+- [x] Создать Pydantic модель `WeatherData`
+- [x] Тестировать получение данных для тестовой точки
 
 ### 4.2 Backend: NOAA/Copernicus - течения
-- [ ] Установить `xarray`, `netCDF4`, `siphon`
-- [ ] Создать `services/weather/ocean_currents.py`
-- [ ] Реализовать функцию `fetch_currents()`:
+- [x] Установить `xarray`, `netCDF4`, `siphon`
+- [x] Создать `services/weather/ocean_currents.py`
+- [x] Реализовать функцию `fetch_currents()`:
   - Подключение к NOAA RTOFS через OPeNDAP
   - Получение u, v компонент течения
   - Интерполяция на нужные координаты
-- [ ] Создать Pydantic модель `CurrentsData`
-- [ ] Тестировать получение данных
+- [x] Создать Pydantic модель `CurrentsData`
+- [x] Тестировать получение данных
 
 ### 4.3 Backend: Weather Aggregator
-- [ ] Создать `services/weather/aggregator.py`
-- [ ] Реализовать функцию `get_weather_for_route()`:
+- [x] Создать `services/weather/aggregator.py`
+- [x] Реализовать функцию `get_weather_for_route()`:
   - Объединяет данные Open-Meteo + NOAA
   - Возвращает единую структуру данных
-- [ ] Добавить кеширование (in-memory для MVP, потом Redis)
-- [ ] Создать эндпоинт `GET /api/weather?lat=...&lon=...&date=...`
+- [x] Добавить кеширование (in-memory для MVP, потом Redis)
+- [x] Создать эндпоинт `GET /api/weather?lat=...&lon=...&date=...`
 
 ---
 
