@@ -1,6 +1,6 @@
 /**
  * MapView Component
- * Main map component using Leaflet (React-Leaflet)
+ * Main map component using Leaflet (React-Leaflet) with deck.gl overlay support
  */
 import { useCallback, useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
@@ -8,6 +8,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { config } from '../../config';
 import type { Coordinates, MapMarker, MapClickEvent } from '../../types';
+import { DeckGLOverlay } from './DeckGLOverlay';
 
 // Fix for default marker icons in Leaflet with Vite
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -31,6 +32,8 @@ interface MapViewProps {
   initialCenter?: Coordinates;
   initialZoom?: number;
   className?: string;
+  children?: React.ReactNode;
+  deckLayers?: any[]; // deck.gl layers
 }
 
 // Component to handle map events
@@ -98,6 +101,8 @@ export default function MapView({
   initialCenter = config.map.defaultCenter,
   initialZoom = config.map.defaultZoom,
   className = '',
+  children,
+  deckLayers = [],
 }: MapViewProps) {
   const [clickedCoords, setClickedCoords] = useState<Coordinates | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -169,6 +174,12 @@ export default function MapView({
             )}
           </Marker>
         ))}
+
+        {/* Children (e.g., RouteLayer) */}
+        {children}
+
+        {/* DeckGL Overlay for weather layers */}
+        {deckLayers.length > 0 && <DeckGLOverlay layers={deckLayers} />}
       </MapContainer>
 
       {/* Coordinates display (when map is clicked) */}

@@ -3,12 +3,11 @@
  * Main panel for route input with start/end locations and departure time
  */
 
-import { useState } from 'react';
+import { useState, useImperativeHandle, forwardRef } from 'react';
 import { LocationInput } from '../LocationInput';
 import { DateTimePicker } from '../DateTimePicker';
 import type {
   LocationInputState,
-  LocationFeature,
   Coordinates,
 } from '../../types';
 import { reverseGeocodeLocation } from '../../services/geocodingApi';
@@ -25,13 +24,13 @@ interface RouteInputPanelProps {
   className?: string;
 }
 
-export function RouteInputPanel({
+export const RouteInputPanel = forwardRef<any, RouteInputPanelProps>(function RouteInputPanel({
   onCalculateRoute,
   onStartLocationChange,
   onEndLocationChange,
   onMapClickMode,
   className = '',
-}: RouteInputPanelProps) {
+}: RouteInputPanelProps, ref) {
   // State
   const [startLocation, setStartLocation] = useState<LocationInputState>({
     value: '',
@@ -179,6 +178,11 @@ export function RouteInputPanel({
       onEndLocationChange(temp);
     }
   };
+
+  // Expose method to parent via ref
+  useImperativeHandle(ref, () => ({
+    setLocationFromCoordinates,
+  }));
 
   // Clear all
   const handleClearAll = () => {
@@ -374,5 +378,5 @@ export function RouteInputPanel({
       </div>
     </div>
   );
-}
+});
 

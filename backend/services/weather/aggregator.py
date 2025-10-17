@@ -304,31 +304,199 @@ class WeatherAggregator:
         
         west, south, east, north = bbox
         
-        logger.info(f"Fetching {layer_type} layer data for bbox {bbox}")
+        logger.info(f"Fetching {layer_type} layer data for bbox {bbox}, resolution={resolution}")
         
-        # For MVP, we'll support currents layer
-        if layer_type == "currents":
-            currents_points = await self.ocean_currents.fetch_currents_grid(
-                bbox, timestamp, resolution
+        # Limit grid size for performance
+        lat_points = int((north - south) / resolution) + 1
+        lng_points = int((east - west) / resolution) + 1
+        total_points = lat_points * lng_points
+        
+        # Cap at reasonable limit
+        max_points = 5000
+        if total_points > max_points:
+            # Adjust resolution to stay within limit
+            new_resolution = max(
+                (north - south) / 50,
+                (east - west) / 50,
+                resolution
             )
-            
-            # Convert to visualization format
-            data_points = []
-            for point in currents_points:
-                data_points.append({
-                    "lat": point.lat,
-                    "lng": point.lng,
-                    "u": point.u,
-                    "v": point.v,
-                    "timestamp": point.timestamp.isoformat()
-                })
-            
-            return data_points
+            logger.warning(
+                f"Grid too large ({total_points} points), adjusting resolution to {new_resolution:.2f}°"
+            )
+            resolution = new_resolution
         
-        # For other layers, we would need to implement similar grid fetching
-        # This is a placeholder for future implementation
-        logger.warning(f"Layer type {layer_type} not yet implemented")
-        return []
+        if layer_type == "currents":
+            return await self._fetch_currents_layer(bbox, timestamp, resolution)
+        elif layer_type == "wind":
+            return await self._fetch_wind_layer(bbox, timestamp, resolution)
+        elif layer_type == "waves":
+            return await self._fetch_waves_layer(bbox, timestamp, resolution)
+        elif layer_type == "temperature":
+            return await self._fetch_temperature_layer(bbox, timestamp, resolution)
+        else:
+            logger.warning(f"Layer type {layer_type} not supported")
+            return []
+    
+    async def _fetch_currents_layer(
+        self,
+        bbox: List[float],
+        timestamp: datetime,
+        resolution: float
+    ) -> List[dict]:
+        """Fetch currents layer data"""
+        currents_points = await self.ocean_currents.fetch_currents_grid(
+            bbox, timestamp, resolution
+        )
+        
+        # Convert to visualization format
+        data_points = []
+        for point in currents_points:
+            data_points.append({
+                "lat": point.lat,
+                "lng": point.lng,
+                "u": point.u,
+                "v": point.v,
+                "speed": (point.u**2 + point.v**2)**0.5 * 1.94384,  # m/s to knots
+                "timestamp": point.timestamp.isoformat()
+            })
+        
+        return data_points
+    
+    async def _fetch_wind_layer(
+        self,
+        bbox: List[float],
+        timestamp: datetime,
+        resolution: float
+    ) -> List[dict]:
+        """Fetch wind layer data"""
+        import numpy as np
+        
+        west, south, east, north = bbox
+        
+        # Generate grid points
+        lats = np.arange(south, north + resolution, resolution)
+        lngs = np.arange(west, east + resolution, resolution)
+        
+        data_points = []
+        
+        # Fetch weather for grid points (in batches for performance)
+        for lat in lats:
+            for lng in lngs:
+                try:
+                    # Fetch weather point
+                    weather_point = await self._get_weather_for_waypoint(
+                        lat, lng, timestamp, include_currents=False
+                    )
+                    
+                    if weather_point and weather_point.wind:
+                        # Convert wind direction to u,v components for visualization
+                        speed = weather_point.wind.speed  # knots
+                        direction_deg = weather_point.wind.direction  # degrees
+                        
+                        # Convert to radians and calculate components
+                        # Wind direction is "from" direction, so we add 180 to get "to" direction
+                        direction_rad = np.deg2rad((direction_deg + 180) % 360)
+                        u = speed * np.sin(direction_rad)
+                        v = speed * np.cos(direction_rad)
+                        
+                        data_points.append({
+                            "lat": float(lat),
+                            "lng": float(lng),
+                            "speed": float(speed),
+                            "direction": float(direction_deg),
+                            "u": float(u),
+                            "v": float(v),
+                            "gust": float(weather_point.wind.gust) if weather_point.wind.gust else None,
+                            "timestamp": weather_point.timestamp.isoformat()
+                        })
+                except Exception as e:
+                    logger.debug(f"Error fetching wind at ({lat}, {lng}): {e}")
+                    continue
+        
+        logger.info(f"Fetched {len(data_points)} wind data points")
+        return data_points
+    
+    async def _fetch_waves_layer(
+        self,
+        bbox: List[float],
+        timestamp: datetime,
+        resolution: float
+    ) -> List[dict]:
+        """Fetch waves layer data"""
+        import numpy as np
+        
+        west, south, east, north = bbox
+        
+        # Generate grid points
+        lats = np.arange(south, north + resolution, resolution)
+        lngs = np.arange(west, east + resolution, resolution)
+        
+        data_points = []
+        
+        # Fetch weather for grid points
+        for lat in lats:
+            for lng in lngs:
+                try:
+                    # Fetch weather point
+                    weather_point = await self._get_weather_for_waypoint(
+                        lat, lng, timestamp, include_currents=False
+                    )
+                    
+                    if weather_point and weather_point.waves:
+                        data_points.append({
+                            "lat": float(lat),
+                            "lng": float(lng),
+                            "height": float(weather_point.waves.height),
+                            "direction": float(weather_point.waves.direction) if weather_point.waves.direction else None,
+                            "period": float(weather_point.waves.period) if weather_point.waves.period else None,
+                            "timestamp": weather_point.timestamp.isoformat()
+                        })
+                except Exception as e:
+                    logger.debug(f"Error fetching waves at ({lat}, {lng}): {e}")
+                    continue
+        
+        logger.info(f"Fetched {len(data_points)} wave data points")
+        return data_points
+    
+    async def _fetch_temperature_layer(
+        self,
+        bbox: List[float],
+        timestamp: datetime,
+        resolution: float
+    ) -> List[dict]:
+        """Fetch temperature layer data"""
+        import numpy as np
+        
+        west, south, east, north = bbox
+        
+        # Generate grid points
+        lats = np.arange(south, north + resolution, resolution)
+        lngs = np.arange(west, east + resolution, resolution)
+        
+        data_points = []
+        
+        # Fetch weather for grid points
+        for lat in lats:
+            for lng in lngs:
+                try:
+                    # Fetch weather point
+                    weather_point = await self._get_weather_for_waypoint(
+                        lat, lng, timestamp, include_currents=False
+                    )
+                    
+                    if weather_point and weather_point.temperature is not None:
+                        data_points.append({
+                            "lat": float(lat),
+                            "lng": float(lng),
+                            "temperature": float(weather_point.temperature),
+                            "timestamp": weather_point.timestamp.isoformat()
+                        })
+                except Exception as e:
+                    logger.debug(f"Error fetching temperature at ({lat}, {lng}): {e}")
+                    continue
+        
+        logger.info(f"Fetched {len(data_points)} temperature data points")
+        return data_points
     
     def clear_cache(self):
         """Clear the weather cache"""

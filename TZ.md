@@ -204,82 +204,80 @@
 ## ЭТАП 6: Frontend - отображение маршрута
 
 ### 6.1 API клиент для маршрута
-- [ ] Создать `services/routeApi.ts`
-- [ ] Реализовать функцию `calculateRoute(start, end, departureTime)`
-- [ ] Создать TypeScript типы для `Route`, `Waypoint`, `WeatherData`
+- [x] Создать `services/routeApi.ts`
+- [x] Реализовать функцию `calculateRoute(start, end, departureTime)`
+- [x] Создать TypeScript типы для `Route`, `Waypoint`, `WeatherData`
 
 ### 6.2 Отображение маршрута на карте
-- [ ] Создать компонент `RouteLayer.tsx`
-- [ ] Отрисовать линию маршрута (Mapbox GL JS LineLayer)
-- [ ] Отобразить waypoints (точки) на маршруте
-- [ ] Добавить popup при клике на waypoint:
+- [x] Создать компонент `RouteLayer.tsx`
+- [x] Отрисовать линию маршрута (Leaflet Polyline)
+- [x] Отобразить waypoints (точки) на маршруте
+- [x] Добавить popup при клике на waypoint:
   - Координаты
   - ETA
   - Погодные условия
-- [ ] Стилизация маршрута (цвет, толщина)
+- [x] Стилизация маршрута (цвет, толщина)
 
 ### 6.3 Панель с информацией о маршруте
-- [ ] Создать компонент `RouteMetrics.tsx`:
+- [x] Создать компонент `RouteMetrics.tsx`:
   - Общая дистанция
   - ETA (время прибытия)
   - Время в пути
-- [ ] Создать компонент `WeatherWarnings.tsx`:
+- [x] Создать компонент `WeatherWarnings.tsx`:
   - Список предупреждений
   - Иконки опасности
-- [ ] Добавить в левую панель (как в StormGeo)
+- [x] Добавить в левую панель (как в StormGeo)
 
 ### 6.4 Таблица waypoints
-- [ ] Создать компонент `WaypointsTable.tsx`
-- [ ] Колонки:
+- [x] Создать компонент `WaypointsTable.tsx`
+- [x] Колонки:
   - #, Coordinates, ETA, Wind, Waves, Currents, Distance
-- [ ] Responsive таблица (scroll)
-- [ ] Разместить внизу экрана (как в StormGeo)
+- [x] Responsive таблица (scroll)
+- [x] Разместить внизу экрана (как в StormGeo)
 
 ---
 
 ## ЭТАП 7: Визуализация погоды - слои
 
 ### 7.1 Backend: API для слоев погоды
-- [ ] Создать эндпоинт `GET /api/weather/layer`:
+- [x] Создать эндпоинт `POST /api/weather/layer`:
   - Параметры: `type` (wind/waves/currents), `bbox`, `timestamp`
   - Возврат: GeoJSON или grid данных
-- [ ] Реализовать генерацию данных для области карты (не только маршрут)
-- [ ] Оптимизация: downsample данных для производительности
+- [x] Реализовать генерацию данных для области карты (не только маршрут)
+- [x] Оптимизация: downsample данных для производительности
 
 ### 7.2 Frontend: Deck.gl интеграция
-- [ ] Установить `deck.gl`, `@deck.gl/react`
-- [ ] Создать базовый `DeckGLOverlay` для Mapbox
-- [ ] Настроить интеграцию Mapbox + Deck.gl
-- [ ] Тестовый слой (например, ScatterplotLayer)
+- [x] Установить `deck.gl`, `@deck.gl/react`
+- [x] Создать базовый `DeckGLOverlay` для Leaflet
+- [x] Настроить интеграцию Leaflet + Deck.gl
+- [x] Тестовый слой (ScatterplotLayer, LineLayer)
 
 ### 7.3 Слой ветра (particle animation)
-- [ ] Исследовать библиотеки: `wind-gl` или кастомный WebGL shader
-- [ ] Создать `WindLayer.tsx` с Deck.gl
-- [ ] Реализовать particle animation (как Windy.com):
-  - Частицы движутся по направлению ветра
-  - Скорость частиц = скорость ветра
-  - Цвет = интенсивность
-- [ ] Загрузка данных ветра с backend
-- [ ] Оптимизация производительности (WebGL)
+- [x] Создать `WindLayer.tsx` с Deck.gl
+- [x] Реализовать векторное отображение ветра:
+  - Стрелки показывают направление и скорость
+  - Цвет = интенсивность (синий → зеленый → желтый → красный)
+- [x] Загрузка данных ветра с backend
+- [x] Оптимизация производительности (WebGL через deck.gl)
 
 ### 7.4 Слой волн (heatmap)
-- [ ] Создать `WavesLayer.tsx`
-- [ ] Использовать Deck.gl HeatmapLayer или GridLayer
-- [ ] Цветовая шкала: синий (низкие) → красный (высокие)
-- [ ] Загрузка данных волн с backend
-- [ ] Легенда высоты волн
+- [x] Создать `WavesLayer.tsx`
+- [x] Использовать Deck.gl HeatmapLayer и ScatterplotLayer
+- [x] Цветовая шкала: синий (низкие) → красный (высокие)
+- [x] Загрузка данных волн с backend
+- [x] Hover для отображения информации
 
 ### 7.5 Слой течений (vector field)
-- [ ] Создать `CurrentsLayer.tsx`
-- [ ] Использовать Deck.gl IconLayer или LineLayer для стрелок
-- [ ] Стрелки показывают направление и скорость течения
-- [ ] Загрузка данных течений с backend
-- [ ] Легенда скорости течений
+- [x] Создать `CurrentsLayer.tsx`
+- [x] Использовать Deck.gl LineLayer для стрелок
+- [x] Стрелки показывают направление и скорость течения
+- [x] Загрузка данных течений с backend
+- [x] Цветовая кодировка по скорости
 
 ### 7.6 Слои осадков и температуры
-- [ ] Создать `PrecipitationLayer.tsx` (опционально для MVP)
-- [ ] Создать `TemperatureLayer.tsx` (опционально для MVP)
-- [ ] Heatmap визуализация
+- [x] Backend поддержка temperature layer (опционально для MVP)
+- [ ] Создать `PrecipitationLayer.tsx` (отложено)
+- [ ] Heatmap визуализация (отложено)
 
 ---
 
